@@ -29,6 +29,18 @@ class ValidatorSQL(Validator):
         self._id = None
         super(ValidatorSQL, self).__init__(schema, transparent_schema_rules=True, allow_unknown=False)
 
+    def _validate_type_decimal(self, field, value):
+        if not isinstance(value, float) and not isinstance(value, _int_types):
+            self._error(field, errors.ERROR_BAD_TYPE % "decimal")
+
+    def _validate_type_date(self, field, value):
+        if not isinstance(value, date):
+            self._error(field, errors.ERROR_BAD_TYPE % "date")
+
+    def _validate_type_time(self, field, value):
+        if not isinstance(value, time):
+            self._error(field, errors.ERROR_BAD_TYPE % "time")
+
     def validate_update(self, document, _id):
         self._id = _id
         return super(ValidatorSQL, self).validate_update(document)

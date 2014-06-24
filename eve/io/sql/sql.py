@@ -69,25 +69,21 @@ class SQL(DataLayer):
 
         :param model_name: Name of SQLAlchemy model.
         """
-        return cls.driver.Model._decl_class_registry[model_name.capitalize()]
+        return cls.driver.Model._decl_class_registry[model_name]
 
     @classmethod
-    def register_schema(cls, app, model_name=None):
+    def register_schema(cls, app):
         """Register eve schema for SQLAlchemy model(s)
         :param app: Flask application instance.
-        :param model_name: Name of SQLAlchemy model (register all models if not provided)
         """
-        if model_name:
-            models = {model_name.capitalize(): cls.driver.Model._decl_class_registry[model_name.capitalize()]}
-        else:
-            models = cls.driver.Model._decl_class_registry
+        models = cls.driver.Model._decl_class_registry
 
         for model_name, model_cls in models.items():
             if model_name.startswith('_'):
                 continue
-            if getattr(model_cls, '_eve_schema', None):
-                eve_schema = model_cls._eve_schema
-                dict_update(app.config['DOMAIN'], eve_schema)
+            if getattr(model_cls, '_eve_domain_resource', None):
+                eve_domain_resource = model_cls._eve_domain_resource
+                dict_update(app.config['DOMAIN'], eve_domain_resource)
 
         for k, v in app.config['DOMAIN'].items():
             # If a resource has a relation, copy the properties of the relation
@@ -98,6 +94,9 @@ class SQL(DataLayer):
                     v['schema'] = source['schema']
                     v['item_lookup_field'] = source['item_lookup_field']
                     v['item_url'] = source['item_url']
+
+    def create_all(self, bind='__all__'):
+        self.driver.create_all(bind)
 
     def find(self, resource, req, sub_resource_lookup):
         """Retrieves a set of documents matching a given request. Queries can
@@ -221,11 +220,11 @@ class SQL(DataLayer):
         self.driver.session.commit()
 
     @staticmethod
-    def _source(resource):
-        return config.SOURCES[resource]['source']
+    def _schema_class(resource):
+        return config.DOMAIN[resource]['schema_class']
 
     def _model(self, resource):
-        return self.lookup_model(self._source(resource))
+        return self.lookup_model(self._schema_class(resource))
 
     def _datasource(self, resource):
         """

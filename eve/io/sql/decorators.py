@@ -3,20 +3,32 @@ from eve.utils import config
 from .utils import dict_update
 
 
-__all__ = ['registerSchema']
+__all__ = ['cval', 'registerSchema']
+
+
+def cval(**kwargs):
+    r'''Add to db.Column info: db.Column(db.String, info=cval(minlength=8))
+    '''
+    return dict(cval=kwargs)
 
 
 sqla_type_mapping = {flask_sqlalchemy.sqlalchemy.types.Integer: 'integer',
+                     flask_sqlalchemy.sqlalchemy.types.Date: 'date',
                      flask_sqlalchemy.sqlalchemy.types.DateTime: 'datetime',
-                     flask_sqlalchemy.sqlalchemy.types.DATETIME: 'datetime'}
-                     # TODO: Add the remaining sensible SQL types
+                     flask_sqlalchemy.sqlalchemy.types.Time: 'time',
+                     flask_sqlalchemy.sqlalchemy.types.Boolean: 'boolean',
+                     flask_sqlalchemy.sqlalchemy.types.Float: 'float',
+                     flask_sqlalchemy.sqlalchemy.types.Numeric: 'decimal',
+                     flask_sqlalchemy.sqlalchemy.types.String: 'string',
+                    }
+                    # TODO: Add the remaining sensible SQL types
 
 
 def lookup_column_type(intype):
     for sqla_type, api_type in sqla_type_mapping.items():
         if isinstance(intype, sqla_type):
             return api_type
-    return 'string'
+    raise KeyError("{} not a known SQL type".format(intype))
 
 
 class registerSchema(object):
@@ -29,7 +41,7 @@ class registerSchema(object):
         self.resource = resource
 
     def __call__(self, cls_):
-        if hasattr(cls_, '_eve_schema'):
+        if hasattr(cls_, '_eve_domain_resource'):
             return cls_
 
         resource = self.resource or cls_.__name__.lower()
@@ -38,10 +50,11 @@ class registerSchema(object):
         domain = {
             resource: {
                 'schema': {},
+                'schema_class': cls_.__name__,
                 'item_lookup': True,
                 'item_lookup_field': '_id',  # TODO: Make these respect the ID_FIELD config of Eve
-                'item_url': 'regex("[0-9]+")'
-            }
+                'item_url': 'regex("[0-9]+")',
+            },
         }
 
         if hasattr(cls_, '_eve_resource'):
@@ -53,7 +66,7 @@ class registerSchema(object):
             schema = domain[resource]['schema'][prop.key] = {}
             self.register_column(prop, schema, fields)
 
-        cls_._eve_schema = domain
+        cls_._eve_domain_resource = domain
         cls_._eve_fields = fields
         return cls_
 
@@ -69,7 +82,8 @@ class registerSchema(object):
                 schema['unique'] = col.primary_key or col.unique or False
                 schema['required'] = not col.nullable if not col.primary_key else False
                 if hasattr(col.type, 'length'):
-                    schema['maxlength'] = col.type.length
+                    if col.type.length is not None:
+                        schema['maxlength'] = col.type.length
                 if col.default is not None:
                     schema['default'] = col.default.arg
                     col.default = None
@@ -84,3 +98,6 @@ class registerSchema(object):
                 relation_resource = foreign_key.target_fullname.split('.')[0]
                 schema['data_relation'] = {'resource': relation_resource}
                 col.foreign_keys.add(foreign_key)
+            if hasattr(col, 'info'):
+                cval = col.info.get('cval', {})
+                schema.update(cval)
