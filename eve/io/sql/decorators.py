@@ -1,6 +1,5 @@
 import flask.ext.sqlalchemy as flask_sqlalchemy
 from eve.utils import config
-from .utils import dict_update
 
 
 __all__ = ['cval', 'registerSchema']
@@ -33,40 +32,43 @@ def lookup_column_type(intype):
 
 class registerSchema(object):
     """
-    Class decorator that scans a Flask-SQLAlchemy db.Model class, prepare an eve schema
-    and attach it to the class attributes.
+    Class decorator that scans a Flask-SQLAlchemy db.Model class, prepares an
+    eve schema and attaches it to the class attributes.
     """
 
-    def __init__(self, resource=None, **kwargs):
+    def __init__(self, resource=None):
         self.resource = resource
 
     def __call__(self, cls_):
-        if hasattr(cls_, '_eve_domain_resource'):
+        if hasattr(cls_, '_eve_schema'):
             return cls_
 
-        resource = self.resource or cls_.__name__.lower()
+        if self.resource:
+            cls_._target_resource = self.resource
+
+        if not hasattr(cls_, '_eve_resource'):
+            cls_._eve_resource = {}
+        resource = cls_._eve_resource
+
+        resource.setdefault('schema', {})
+        resource.setdefault('schema_class', cls_.__name__)
+        resource.setdefault('item_lookup', True)
+
+        # TODO: Make these respect the ID_FIELD config of Eve
+        resource.setdefault('item_lookup_field', '_id')
+
+        resource.setdefault('item_url', 'regex("[0-9]+")')
 
         fields = [config.LAST_UPDATED, config.DATE_CREATED]
-        domain = {
-            resource: {
-                'schema': {},
-                'schema_class': cls_.__name__,
-                'item_lookup': True,
-                'item_lookup_field': '_id',  # TODO: Make these respect the ID_FIELD config of Eve
-                'item_url': 'regex("[0-9]+")',
-            },
-        }
 
-        if hasattr(cls_, '_eve_resource'):
-            dict_update(domain[resource], cls_._eve_resource)
+        schema = cls_._eve_schema = {}
 
         for prop in cls_.__mapper__.iterate_properties:
             if prop.key in (config.LAST_UPDATED, config.DATE_CREATED):
                 continue
-            schema = domain[resource]['schema'][prop.key] = {}
-            self.register_column(prop, schema, fields)
+            field_schema = schema[prop.key] = {}
+            self.register_column(prop, field_schema, fields)
 
-        cls_._eve_domain_resource = domain
         cls_._eve_fields = fields
         return cls_
 

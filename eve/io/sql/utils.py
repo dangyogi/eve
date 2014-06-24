@@ -10,15 +10,18 @@ import collections
 from eve.utils import config
 
 
-def dict_update(d, u):
+def setdefaults(d, u):
+    r'''Recursively copies values from the `u` dict that are not in the
+    `d` dict.
+
+    This means that any value already in `d` is not overridden by `u`.
+    '''
     for k, v in u.items():
-        if isinstance(v, collections.Mapping):
-            if k in d and isinstance(d[k], collections.Mapping):
-                dict_update(d[k], v)
-            else:
-                d[k] = v
-        else:
-            d[k] = u[k]
+        if k not in d:
+            d[k] = v
+        elif isinstance(v, collections.Mapping) and \
+             isinstance(d[k], collections.Mapping):
+            setdefaults(d[k], v)
 
 
 def validate_filters(where, resource):

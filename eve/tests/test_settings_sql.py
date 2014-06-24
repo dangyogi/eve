@@ -16,7 +16,8 @@ ITEM_LOOKUP_FIELD = ID_FIELD
 RESOURCE_METHODS = ['GET', 'POST', 'DELETE']
 ITEM_METHODS = ['GET', 'PATCH', 'DELETE', 'PUT']
 
-people = {'item_title': 'person',
+people = {'schema_class': 'People',
+          'item_title': 'person',
           'additional_lookup': {
               'url': 'regex("[\w]+")',
               'field': 'firstname'
@@ -38,13 +39,14 @@ users_overseas = copy.deepcopy(users)
 users_overseas['url'] = 'users/overseas'
 users_overseas['datasource'] = {'source': 'people'}
 
-invoices = {}
+invoices = {'schema_class': 'Invoices'}
 
 user_invoices = copy.deepcopy(invoices)
 user_invoices['url'] = 'users/<regex("[0-9]+"):people>/invoices'
 user_invoices['datasource'] = {'source': 'invoices'}
 
 payments = {
+    'schema_class': 'Payments',
     'resource_methods': ['GET'],
     'item_methods': ['GET'],
 }

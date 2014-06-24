@@ -22,7 +22,7 @@ from eve.io.base import DataLayer, ConnectionException
 from eve.utils import config, debug_error_message, str_to_date
 from .parser import parse, parse_dictionary, ParseError, sqla_op
 from .structures import SQLAResult, SQLAResultCollection
-from .utils import dict_update, validate_filters
+from .utils import setdefaults, validate_filters
 
 
 db = flask_sqlalchemy.SQLAlchemy()
@@ -78,12 +78,23 @@ class SQL(DataLayer):
         """
         models = cls.driver.Model._decl_class_registry
 
+        # Apply all _target_resources:
         for model_name, model_cls in models.items():
             if model_name.startswith('_'):
                 continue
-            if getattr(model_cls, '_eve_domain_resource', None):
-                eve_domain_resource = model_cls._eve_domain_resource
-                dict_update(app.config['DOMAIN'], eve_domain_resource)
+            if hasattr(model_cls, '_target_resource'):
+                domain = app.config['DOMAIN']
+                resource_dict = domain.setdefault(model_cls._target_resource,
+                                                  {})
+                setdefaults(resource_dict, model_cls._eve_resource)
+
+        # Apply all schema_classes:
+        for resource, resource_dict in app.config['DOMAIN'].items():
+            if 'schema_class' in resource_dict:
+                model_cls = models[resource_dict['schema_class']]
+                setdefaults(resource_dict, model_cls._eve_resource)
+                setdefaults(resource_dict.setdefault('schema', {}),
+                            model_cls._eve_schema)
 
         for k, v in app.config['DOMAIN'].items():
             # If a resource has a relation, copy the properties of the relation
@@ -121,6 +132,7 @@ class SQL(DataLayer):
 
         client_projection = self._client_projection(req)
         model, args['spec'], fields, args['sort'] = self._datasource_ex(resource, [], client_projection, args['sort'])
+
         if req.where:
             try:
                 args['spec'] = self.combine_queries(args['spec'], parse(req.where, model))
